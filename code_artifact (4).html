@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>離線自訂雷達圖產生器</title>
+  <style>
+    /* 基礎變數與色彩系統 */
+    :root {
+      --bg-color: #f4f7f9;
+      --panel-bg: #ffffff;
+      --text-main: #1e293b;
+      --text-muted: #64748b;
+      --border-color: #e2e8f0;
+      --primary-color: #2563eb;
+      --primary-hover: #1d4ed8;
+      --danger-color: #ef4444;
+      --danger-hover: #dc2626;
+      --success-color: #10b981;
+      --success-hover: #059669;
+      --radius: 10px;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans TC", sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      line-height: 1.5;
+      padding: 16px;
+    }
+
+    /* 頂部標題列 */
+    header {
+      max-width: 1280px;
+      margin: 0 auto 20px auto;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      background: var(--panel-bg);
+      padding: 16px 24px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    header h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      background: #dbeafe;
+      color: #1e40af;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+
+    /* 主要雙欄版面 */
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1.15fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--panel-bg);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-color);
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* 表單群組與控制項 */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 0.9rem;
+      color: var(--text-main);
+      background: #fff;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+    }
+
+    input[type="color"] {
+      width: 100%;
+      height: 36px;
+      padding: 2px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      cursor: pointer;
+      background: #fff;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      cursor: pointer;
+    }
+
+    /* 維度列表編輯區 */
+    .dimensions-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 360px;
+      overflow-y: auto;
+      padding-right: 4px;
+      margin-bottom: 14px;
+    }
+
+    .dimension-row {
+      display: grid;
+      grid-template-columns: 28px 1.6fr 1fr 36px;
+      gap: 8px;
+      align-items: center;
+      background: #f8fafc;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .dim-index {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* 按鈕樣式 */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px 14px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-success {
+      background-color: var(--success-color);
+      color: #fff;
+    }
+
+    .btn-success:hover {
+      background-color: var(--success-hover);
+    }
+
+    .btn-outline {
+      background-color: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+
+    .btn-outline:hover {
+      background-color: #f1f5f9;
+    }
+
+    .btn-icon-danger {
+      background: #fee2e2;
+      color: var(--danger-color);
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border-radius: 6px;
+    }
+
+    .btn-icon-danger:hover {
+      background: var(--danger-color);
+      color: #fff;
+    }
+
+    .btn-icon-danger:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* 畫布預覽區塊 (棋盤格背景提示去背效果) */
+    .preview-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .canvas-container {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      max-width: 560px;
+      border-radius: 8px;
+      border: 1px dashed #cbd5e1;
+      /* 透明棋盤格背景 */
+      background-image:
+        linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+        linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+        linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+      background-color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .action-bar {
+      width: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    /* 訊息提示框 (取代 alert) */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #1e293b;
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+      opacity: 0;
+      transform: translateY(15px);
+      pointer-events: none;
+      transition: opacity 0.3s, transform 0.3s;
+      z-index: 999;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-main);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>
+      📊 自訂雷達圖產生器
+      <span class="badge">純離線版 • 支援去背 PNG</span>
+    </h1>
+    <div style="display: flex; gap: 8px;">
+      <button type="button" class="btn btn-outline" id="btnReset">重設預設值</button>
+      <button type="button" class="btn btn-success" id="btnDownloadTop">⬇ 下載去背 PNG</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- 左側：設定面板 -->
+    <section class="card">
+      <div class="card-title">
+        <span>1. 圖表與數值範圍設定</span>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="chartTitle">圖表標題 (選填)</label>
+          <input type="text" id="chartTitle" placeholder="例如：核心能力評估" value="專案能力評估">
+        </div>
+        <div class="form-group">
+          <label for="minValue">數值最小值</label>
+          <input type="number" id="minValue" value="0" step="any">
+        </div>
+        <div class="form-group">
+          <label for="maxValue">數值最大值</label>
+          <input type="number" id="maxValue" value="100" step="any">
+        </div>
+        <div class="form-group">
+          <label for="gridLevels">網格層數 (圈數)</label>
+          <input type="number" id="gridLevels" value="5" min="1" max="10">
+        </div>
+      </div>
+
+      <div class="card-title" style="margin-top: 8px;">
+        <span>2. 色彩與視覺樣式</span>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="fillColor">資料區塊顏色</label>
+          <input type="color" id="fillColor" value="#2563eb">
+        </div>
+        <div class="form-group">
+          <label for="fillAlpha">填滿透明度 (<span id="alphaVal">35%</span>)</label>
+          <input type="range" id="fillAlpha" min="0" max="100" value="35">
+        </div>
+        <div class="form-group">
+          <label for="gridColor">網格線顏色</label>
+          <input type="color" id="gridColor" value="#94a3b8">
+        </div>
+        <div class="form-group">
+          <label for="labelColor">文字與標籤顏色</label>
+          <input type="color" id="labelColor" value="#1e293b">
+        </div>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 18px;">
+        <label class="checkbox-row">
+          <input type="checkbox" id="showValues" checked> 顯示項目數值
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="showScale" checked> 顯示軸線刻度
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="showPoints" checked> 顯示資料頂點圓點
+        </label>
+      </div>
+
+      <div class="card-title">
+        <span>3. 維度項目與數值 (至少 3 項)</span>
+        <button type="button" class="btn btn-primary" id="btnAddDim" style="padding: 5px 10px; font-size: 0.82rem;">+ 新增維度</button>
+      </div>
+
+      <div class="dimensions-list" id="dimensionsList">
+        <!-- 動態產生維度列 -->
+      </div>
+    </section>
+
+    <!-- 右側：即時預覽與下載 -->
+    <section class="card">
+      <div class="card-title">
+        <span>即時預覽 (棋盤格代表透明背景)</span>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">輸出解析度: 1200 × 1200 px</span>
+      </div>
+
+      <div class="preview-wrapper">
+        <div class="canvas-container">
+          <canvas id="radarCanvas" width="1200" height="1200"></canvas>
+        </div>
+
+        <div class="action-bar">
+          <button type="button" class="btn btn-success" id="btnDownloadMain" style="padding: 12px 24px; font-size: 1rem;">
+            ⬇ 下載去背透明 PNG 圖片
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    /**
+     * 自訂雷達圖產生器 - 核心邏輯 (純原生 JavaScript，無外部依賴)
+     */
+    (function () {
+      // 預設資料狀態
+      const defaultState = {
+        title: '專案能力評估',
+        min: 0,
+        max: 100,
+        levels: 5,
+        fillColor: '#2563eb',
+        fillAlpha: 0.35,
+        gridColor: '#94a3b8',
+        labelColor: '#1e293b',
+        showValues: true,
+        showScale: true,
+        showPoints: true,
+        dimensions: [
+          { label: '技術架構', value: 85 },
+          { label: '介面設計', value: 72 },
+          { label: '執行效率', value: 90 },
+          { label: '團隊溝通', value: 78 },
+          { label: '問題解決', value: 88 },
+          { label: '文件完整度', value: 65 }
+        ]
+      };
+
+      // 深拷貝建立當前狀態
+      let state = JSON.parse(JSON.stringify(defaultState));
+
+      // DOM 元素參照
+      const canvas = document.getElementById('radarCanvas');
+      const ctx = canvas.getContext('2d');
+      const dimensionsListEl = document.getElementById('dimensionsList');
+      const toastEl = document.getElementById('toast');
+
+      const inputs = {
+        title: document.getElementById('chartTitle'),
+        min: document.getElementById('minValue'),
+        max: document.getElementById('maxValue'),
+        levels: document.getElementById('gridLevels'),
+        fillColor: document.getElementById('fillColor'),
+        fillAlpha: document.getElementById('fillAlpha'),
+        alphaVal: document.getElementById('alphaVal'),
+        gridColor: document.getElementById('gridColor'),
+        labelColor: document.getElementById('labelColor'),
+        showValues: document.getElementById('showValues'),
+        showScale: document.getElementById('showScale'),
+        showPoints: document.getElementById('showPoints')
+      };
+
+      // 顯示非阻斷式提示訊息
+      let toastTimer = null;
+      function showToast(message) {
+        toastEl.textContent = message;
+        toastEl.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          toastEl.classList.remove('show');
+        }, 2800);
+      }
+
+      // 十六進位色碼轉 RGBA
+      function hexToRgba(hex, alpha) {
+        const cleanHex = hex.replace('#', '');
+        const bigint = parseInt(cleanHex, 16);
+        const r = (bigint >> 16) & 255;
+        const g = (bigint >> 8) & 255;
+        const b = bigint & 255;
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      }
+
+      // 清理與驗證輸入數值
+      function sanitizeNumber(val, fallback) {
+        const num = parseFloat(val);
+        return Number.isFinite(num) ? num : fallback;
+      }
+
+      // 渲染左側維度列表 DOM
+      function renderDimensionInputs() {
+        dimensionsListEl.innerHTML = '';
+        const canDelete = state.dimensions.length > 3;
+
+        state.dimensions.forEach((dim, idx) => {
+          const row = document.createElement('div');
+          row.className = 'dimension-row';
+
+          // 序號
+          const indexSpan = document.createElement('span');
+          indexSpan.className = 'dim-index';
+          indexSpan.textContent = `#${idx + 1}`;
+
+          // 維度名稱輸入框
+          const labelInput = document.createElement('input');
+          labelInput.type = 'text';
+          labelInput.value = dim.label;
+          labelInput.placeholder = '維度名稱';
+          labelInput.addEventListener('input', (e) => {
+            state.dimensions[idx].label = e.target.value;
+            drawRadarChart();
+          });
+
+          // 數值輸入框
+          const valInput = document.createElement('input');
+          valInput.type = 'number';
+          valInput.step = 'any';
+          valInput.value = dim.value;
+          valInput.placeholder = '數值';
+          valInput.addEventListener('input', (e) => {
+            state.dimensions[idx].value = sanitizeNumber(e.target.value, state.min);
+            drawRadarChart();
+          });
+
+          // 刪除按鈕
+          const delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.className = 'btn btn-icon-danger';
+          delBtn.title = canDelete ? '刪除此維度' : '雷達圖至少需要 3 個維度';
+          delBtn.textContent = '✕';
+          delBtn.disabled = !canDelete;
+          delBtn.addEventListener('click', () => {
+            if (state.dimensions.length <= 3) return;
+            state.dimensions.splice(idx, 1);
+            renderDimensionInputs();
+            drawRadarChart();
+          });
+
+          row.appendChild(indexSpan);
+          row.appendChild(labelInput);
+          row.appendChild(valInput);
+          row.appendChild(delBtn);
+          dimensionsListEl.appendChild(row);
+        });
+      }
+
+      // 繪製雷達圖至 Canvas (背景完全透明)
+      function drawRadarChart() {
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // 1. 清除畫布，保持透明像素 (RGBA: 0,0,0,0)
+        ctx.clearRect(0, 0, width, height);
+
+        const count = state.dimensions.length;
+        if (count < 3) return;
+
+        // 確保最大值大於最小值
+        let minVal = sanitizeNumber(state.min, 0);
+        let maxVal = sanitizeNumber(state.max, 100);
+        if (maxVal <= minVal) {
+          maxVal = minVal + 1;
+        }
+        const range = maxVal - minVal;
+        const levels = Math.max(1, Math.min(15, Math.round(sanitizeNumber(state.levels, 5))));
+
+        // 計算幾何中心與半徑 (預留標題與外部標籤邊距)
+        const hasTitle = state.title.trim().length > 0;
+        const centerX = width / 2;
+        const centerY = hasTitle ? height * 0.54 : height * 0.5;
+        const radius = hasTitle ? width * 0.32 : width * 0.35;
+        const angleStep = (Math.PI * 2) / count;
+        const startAngle = -Math.PI / 2; // 從正上方 (12點鐘方向) 開始
+
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // 2. 繪製標題
+        if (hasTitle) {
+          ctx.font = 'bold 42px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif';
+          ctx.fillStyle = state.labelColor;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(state.title.trim(), centerX, 75);
+        }
+
+        // 3. 繪製多邊形網格層
+        ctx.strokeStyle = hexToRgba(state.gridColor, 0.55);
+        ctx.lineWidth = 2;
+
+        for (let lvl = 1; lvl <= levels; lvl++) {
+          const r = (radius / levels) * lvl;
+          ctx.beginPath();
+          for (let i = 0; i < count; i++) {
+            const angle = startAngle + i * angleStep;
+            const x = centerX + r * Math.cos(angle);
+            const y = centerY + r * Math.sin(angle);
+            if (i === 0) {
+              ctx.moveTo(x, y);
+            } else {
+              ctx.lineTo(x, y);
+            }
+          }
+          ctx.closePath();
+          ctx.stroke();
+        }
+
+        // 4. 繪製從中心點出發的放射狀軸線
+        for (let i = 0; i < count; i++) {
+          const angle = startAngle + i * angleStep;
+          const x = centerX + radius * Math.cos(angle);
+          const y = centerY + radius * Math.sin(angle);
+          ctx.beginPath();
+          ctx.moveTo(centerX, centerY);
+          ctx.lineTo(x, y);
+          ctx.stroke();
+        }
+
+        // 5. 繪製軸線刻度數值 (沿著第一條垂直軸線顯示)
+        if (state.showScale) {
+          ctx.font = '600 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          ctx.fillStyle = hexToRgba(state.labelColor, 0.75);
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+
+          for (let lvl = 0; lvl <= levels; lvl++) {
+            const r = (radius / levels) * lvl;
+            const scaleVal = minVal + (range / levels) * lvl;
+            // 格式化數字，避免浮點數冗長尾數
+            const formatted = Number.isInteger(scaleVal) ? scaleVal.toString() : scaleVal.toFixed(1);
+            ctx.fillText(formatted, centerX + 10, centerY - r);
+          }
+        }
+
+        // 6. 計算各維度資料點座標 (限制數值在 [minVal, maxVal] 範圍內)
+        const dataPoints = state.dimensions.map((dim, i) => {
+          const rawVal = sanitizeNumber(dim.value, minVal);
+          const clampedVal = Math.max(minVal, Math.min(maxVal, rawVal));
+          const ratio = (clampedVal - minVal) / range;
+          const r = ratio * radius;
+          const angle = startAngle + i * angleStep;
+          return {
+            x: centerX + r * Math.cos(angle),
+            y: centerY + r * Math.sin(angle),
+            angle: angle,
+            label: dim.label.trim() || `維度 ${i + 1}`,
+            displayValue: rawVal
+          };
+        });
+
+        // 7. 繪製資料多邊形填滿與外框線
+        ctx.beginPath();
+        dataPoints.forEach((pt, i) => {
+          if (i === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        });
+        ctx.closePath();
+
+        ctx.fillStyle = hexToRgba(state.fillColor, state.fillAlpha);
+        ctx.fill();
+
+        ctx.strokeStyle = state.fillColor;
+        ctx.lineWidth = 4.5;
+        ctx.stroke();
+
+        // 8. 繪製資料頂點圓點
+        if (state.showPoints) {
+          dataPoints.forEach((pt) => {
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, 7, 0, Math.PI * 2);
+            ctx.fillStyle = state.fillColor;
+            ctx.fill();
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = '#ffffff';
+            ctx.stroke();
+          });
+        }
+
+        // 9. 繪製外部維度標籤與項目數值
+        const labelOffset = 34;
+        ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif';
+        ctx.fillStyle = state.labelColor;
+
+        dataPoints.forEach((pt) => {
+          const lx = centerX + (radius + labelOffset) * Math.cos(pt.angle);
+          const ly = centerY + (radius + labelOffset) * Math.sin(pt.angle);
+          const cos = Math.cos(pt.angle);
+          const sin = Math.sin(pt.angle);
+
+          // 根據角度智慧調整水平對齊
+          if (Math.abs(cos) < 0.12) {
+            ctx.textAlign = 'center';
+          } else if (cos > 0) {
+            ctx.textAlign = 'left';
+          } else {
+            ctx.textAlign = 'right';
+          }
+
+          // 根據角度調整垂直基準線
+          if (Math.abs(sin) < 0.12) {
+            ctx.textBaseline = 'middle';
+          } else if (sin > 0) {
+            ctx.textBaseline = 'top';
+          } else {
+            ctx.textBaseline = 'bottom';
+          }
+
+          const textToDraw = state.showValues ? `${pt.label} (${pt.displayValue})` : pt.label;
+          ctx.fillText(textToDraw, lx, ly);
+        });
+
+        ctx.restore();
+      }
+
+      // 下載去背 PNG 檔案
+      function downloadTransparentPNG() {
+        try {
+          // 確保最新狀態已繪製
+          drawRadarChart();
+          const dataUrl = canvas.toDataURL('image/png');
+          const link = document.createElement('a');
+          const cleanTitle = (state.title.trim() || 'radar-chart').replace(/[\\/:*?"<>|]/g, '_');
+          link.download = `${cleanTitle}_去背雷達圖.png`;
+          link.href = dataUrl;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          showToast('已開始下載透明去背 PNG 檔案！');
+        } catch (err) {
+          showToast('匯出圖片時發生錯誤，請重試。');
+        }
+      }
+
+      // 同步控制項 UI 與 State
+      function syncInputsFromState() {
+        inputs.title.value = state.title;
+        inputs.min.value = state.min;
+        inputs.max.value = state.max;
+        inputs.levels.value = state.levels;
+        inputs.fillColor.value = state.fillColor;
+        inputs.fillAlpha.value = Math.round(state.fillAlpha * 100);
+        inputs.alphaVal.textContent = `${Math.round(state.fillAlpha * 100)}%`;
+        inputs.gridColor.value = state.gridColor;
+        inputs.labelColor.value = state.labelColor;
+        inputs.showValues.checked = state.showValues;
+        inputs.showScale.checked = state.showScale;
+        inputs.showPoints.checked = state.showPoints;
+      }
+
+      // 綁定所有控制項事件
+      function bindEvents() {
+        inputs.title.addEventListener('input', (e) => {
+          state.title = e.target.value;
+          drawRadarChart();
+        });
+
+        inputs.min.addEventListener('input', (e) => {
+          state.min = sanitizeNumber(e.target.value, 0);
+          drawRadarChart();
+        });
+
+        inputs.max.addEventListener('input', (e) => {
+          state.max = sanitizeNumber(e.target.value, 100);
+          drawRadarChart();
+        });
+
+        inputs.levels.addEventListener('input', (e) => {
+          state.levels = sanitizeNumber(e.target.value, 5);
+          drawRadarChart();
+        });
+
+        inputs.fillColor.addEventListener('input', (e) => {
+          state.fillColor = e.target.value;
+          drawRadarChart();
+        });
+
+        inputs.fillAlpha.addEventListener('input', (e) => {
+          const pct = sanitizeNumber(e.target.value, 35);
+          state.fillAlpha = pct / 100;
+          inputs.alphaVal.textContent = `${pct}%`;
+          drawRadarChart();
+        });
+
+        inputs.gridColor.addEventListener('input', (e) => {
+          state.gridColor = e.target.value;
+          drawRadarChart();
+        });
+
+        inputs.labelColor.addEventListener('input', (e) => {
+          state.labelColor = e.target.value;
+          drawRadarChart();
+        });
+
+        inputs.showValues.addEventListener('change', (e) => {
+          state.showValues = e.target.checked;
+          drawRadarChart();
+        });
+
+        inputs.showScale.addEventListener('change', (e) => {
+          state.showScale = e.target.checked;
+          drawRadarChart();
+        });
+
+        inputs.showPoints.addEventListener('change', (e) => {
+          state.showPoints = e.target.checked;
+          drawRadarChart();
+        });
+
+        // 新增維度按鈕
+        document.getElementById('btnAddDim').addEventListener('click', () => {
+          const midVal = Math.round((state.min + state.max) / 2);
+          state.dimensions.push({
+            label: `新維度 ${state.dimensions.length + 1}`,
+            value: midVal
+          });
+          renderDimensionInputs();
+          drawRadarChart();
+          dimensionsListEl.scrollTop = dimensionsListEl.scrollHeight;
+        });
+
+        // 重設預設值按鈕
+        document.getElementById('btnReset').addEventListener('click', () => {
+          state = JSON.parse(JSON.stringify(defaultState));
+          syncInputsFromState();
+          renderDimensionInputs();
+          drawRadarChart();
+          showToast('已還原為預設設定');
+        });
+
+        // 下載按鈕
+        document.getElementById('btnDownloadTop').addEventListener('click', downloadTransparentPNG);
+        document.getElementById('btnDownloadMain').addEventListener('click', downloadTransparentPNG);
+      }
+
+      // 初始化執行
+      syncInputsFromState();
+      renderDimensionInputs();
+      bindEvents();
+      drawRadarChart();
+    })();
+  </script>
+</body>
+</html>
